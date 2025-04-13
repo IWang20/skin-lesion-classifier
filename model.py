@@ -70,46 +70,46 @@ def data():
     labels = []
     data_list = []
 
-    print("-Creating Original CSV-")
+    # print("-Creating Original CSV-")
     with h5py.File('./train-image.hdf5', 'r') as file:
-        with open("original_results.csv", mode="w", newline="") as csvFile:
-            writer = csv.writer(csvFile)
-            for id in ids:
-                # write to original_results.csv
-                image_values = metadata[metadata["isic_id"] == id].values.tolist()[0]
-                target, sex, age = image_values[target_ind], image_values[sex_ind], image_values[age_ind]
-                # lstar = image_values[18]
-                # bstar = image_values[12]
-                lstar = float(metadata[metadata["isic_id"] == id]['tbp_lv_Lext'].values[0])
-                bstar = float(metadata[metadata["isic_id"] == id]['tbp_lv_Bext'].values[0])
-                # print(lstar, bstar)
-                
-                ita = np.arctan2(lstar - 50, bstar)*(180/np.pi)
-                category = get_tone_category(ita)
-                data_list.append([target, sex, age, ita, category])
-                if id in file:
-                    raw_data = file[id][()]
-                    image = Image.open(io.BytesIO(raw_data))
-                    image_pil = Image.fromarray(np.array(image))
-                    label = metadata[metadata["isic_id"] == file[id].name[1:]].values.tolist()[0][1]
-                    images.append(image_pil)
+        # with open("original_results.csv", mode="w", newline="") as csvFile:
+            # writer = csv.writer(csvFile)
+        for id in ids:
+            # write to original_results.csv
+            image_values = metadata[metadata["isic_id"] == id].values.tolist()[0]
+            target, sex, age = image_values[target_ind], image_values[sex_ind], image_values[age_ind]
+            # lstar = image_values[18]
+            # bstar = image_values[12]
+            lstar = float(metadata[metadata["isic_id"] == id]['tbp_lv_Lext'].values[0])
+            bstar = float(metadata[metadata["isic_id"] == id]['tbp_lv_Bext'].values[0])
+            # print(lstar, bstar)
+            
+            ita = np.arctan2(lstar - 50, bstar)*(180/np.pi)
+            category = get_tone_category(ita)
+            data_list.append([target, sex, age, ita, category])
+            if id in file:
+                raw_data = file[id][()]
+                image = Image.open(io.BytesIO(raw_data))
+                image_pil = Image.fromarray(np.array(image))
+                label = metadata[metadata["isic_id"] == file[id].name[1:]].values.tolist()[0][1]
+                images.append(image_pil)
+                labels.append(label)
+
+                if label == 1:
+                    flipped_horizontal = image.transpose(Image.FLIP_LEFT_RIGHT)
+                    images.append(flipped_horizontal)
                     labels.append(label)
 
-                    if label == 1:
-                        flipped_horizontal = image.transpose(Image.FLIP_LEFT_RIGHT)
-                        images.append(flipped_horizontal)
-                        labels.append(label)
+                    flipped_vertical = image.transpose(Image.FLIP_TOP_BOTTOM)
+                    images.append(flipped_vertical)
+                    labels.append(label)
 
-                        flipped_vertical = image.transpose(Image.FLIP_TOP_BOTTOM)
-                        images.append(flipped_vertical)
-                        labels.append(label)
+                    rotated = image.rotate(180)
+                    images.append(rotated)
+                    labels.append(label)
+            # writer.writerows(data_list)
 
-                        rotated = image.rotate(180)
-                        images.append(rotated)
-                        labels.append(label)
-            writer.writerows(data_list)
-
-    print("-Finished Original CSV-")
+    # print("-Finished Original CSV-")
     dataset = ImageDataset(images, labels, data_transforms)
     # Filter the dataset for label == 1 and label == 0
     label_1_count = len(list(filter(lambda x: x[1] == 1, dataset)))
@@ -230,9 +230,7 @@ def save_plot(train_acc, train_loss, test_acc, test_loss):
     plt.savefig('training_testing_plot.png')
     
 
-def learner_results(metadata, ids):
-    model = efficientnet_b0(pretrained=True)
-    model.classifier[1] = nn.Linear(model.classifier[1].in_features, 2)
+def learner_results(model, metadata, ids):
     model.load_state_dict(torch.load('skin_lesion_model_best.pth'))
     data_list = []
     # open a csv
@@ -276,12 +274,23 @@ def run():
     print("# of Training Images:", len(train_loader.dataset), "# of Test Images:", len(test_loader.dataset))
     model = efficientnet_b0(pretrained=True)
     model.classifier[1] = nn.Linear(model.classifier[1].in_features, 2)
-    print("-Training Images-")
-    train_model(model, train_loader, test_loader)
+    # print("-Training Images-")
+    # train_model(model, train_loader, test_loader)
     print("-Creating Results CSV, Making Predictions-")
     learner_results(model, metadata, ids)
     print("-Finished Results CSV-")
     
 if __name__ == "__main__":
-    run()
-    # save_plot
+    # run()
+    train_acc = [82.03, 88.39, 91.21, 92.56, 95.55, 96.62, 95.51, 97.26, 97.81, 97.77]
+    train_loss = [0.4202, 0.3026, 0.2405, 0.1959, 0.1334, 0.0970, 0.1141, 0.0757, 0.0540, 0.0612]
+    test_acc = [85.69, 87.12, 86.65, 89.03, 89.35, 88.24, 86.49, 90.62, 89.67, 87.60]
+    test_loss = [0.4002, 0.3203, 0.3029, 0.2759, 0.2435, 0.4240, 0.4003, 0.2794, 0.3899, 0.4098]
+    save_plot(train_acc, train_loss, test_acc, test_loss)
+
+
+
+
+
+
+
