@@ -175,4 +175,4 @@ cython_debug/
 
 train-metadata.csv
 *.hdf5
-*.pth
+skin_lesion_model_best_unfreeze_last_2.pth
