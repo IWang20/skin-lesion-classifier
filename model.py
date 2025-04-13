@@ -17,7 +17,9 @@ import csv
 
 data_transforms = transforms.Compose([
     transforms.Resize((224, 224)),
-    transforms.ToTensor()
+    transforms.ToTensor(),
+    transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                     std=[0.229, 0.224, 0.225])
     ])
 
 r_state = 41
@@ -144,8 +146,19 @@ def train_model(model, train_loader, test_loader, num_epochs=10, learning_rate=0
     print("Currently Using:", device)
     model = model.to(device)
     
+    for param in model.parameters():
+        param.requires_grad = False
+    
+    for param in model.classifier.parameters():
+        param.requires_grad = True
+    
+    for i, block in enumerate(model.features):
+        if i >= 5:
+            for param in block.parameters():
+                param.requires_grad = True
+    
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.parameters(), lr=learning_rate)
+    optimizer = optim.AdamW(filter(lambda p: p.requires_grad, model.parameters()), lr=learning_rate, weight_decay=0.01)
     
     best_test = 0
 
@@ -232,8 +245,9 @@ def save_plot(train_acc, train_loss, test_acc, test_loss):
 
 def learner_results(model, metadata, ids):
     model.load_state_dict(torch.load('skin_lesion_model_best.pth'))
+    model.eval()
+    device = next(model.parameters()).device
     data_list = []
-    # open a csv
     with h5py.File('train-image.hdf5', 'r') as file:
         with open("learner_results.csv", mode="w", newline="") as csvFile:
             writer = csv.writer(csvFile)
@@ -245,6 +259,7 @@ def learner_results(model, metadata, ids):
                     true_label = metadata[metadata["isic_id"] == file[id].name[1:]].values.tolist()[0][1]
                     transform = transforms.ToTensor()
                     transformed_image = transform(image_pil).unsqueeze(0)
+                    transformed_image = transformed_image.to(device)
                     pred_label = None
                     with torch.no_grad():
                         raw_output = model(transformed_image)
@@ -275,18 +290,18 @@ def run():
     model = efficientnet_b0(pretrained=True)
     model.classifier[1] = nn.Linear(model.classifier[1].in_features, 2)
     # print("-Training Images-")
-    # train_model(model, train_loader, test_loader)
+    train_model(model, train_loader, test_loader)
     print("-Creating Results CSV, Making Predictions-")
     learner_results(model, metadata, ids)
     print("-Finished Results CSV-")
     
 if __name__ == "__main__":
-    # run()
-    train_acc = [82.03, 88.39, 91.21, 92.56, 95.55, 96.62, 95.51, 97.26, 97.81, 97.77]
-    train_loss = [0.4202, 0.3026, 0.2405, 0.1959, 0.1334, 0.0970, 0.1141, 0.0757, 0.0540, 0.0612]
-    test_acc = [85.69, 87.12, 86.65, 89.03, 89.35, 88.24, 86.49, 90.62, 89.67, 87.60]
-    test_loss = [0.4002, 0.3203, 0.3029, 0.2759, 0.2435, 0.4240, 0.4003, 0.2794, 0.3899, 0.4098]
-    save_plot(train_acc, train_loss, test_acc, test_loss)
+    run()
+    # train_acc = [79.40, 89.34, 92.76, 95.71, 96.46, 95.98, 97.50, 97.38, 97.34, 97.14]
+    # train_loss = [0.4412, 0.2665, 0.1833, 0.1202, 0.1033, 0.1065, 0.0724, 0.0803, 0.0757, 0.0781]
+    # test_acc = [84.42, 85.37, 85.85, 89.35, 89.19, 89.03, 91.57, 90.46, 91.41, 90.94]
+    # test_loss = [0.3798, 0.3582, 0.3612, 0.3170, 0.4237, 0.3304, 0.3380, 0.3496, 0.3116, 0.3318]
+    # save_plot(train_acc, train_loss, test_acc, test_loss)
 
 
 
